@@ -132,6 +132,11 @@ function updateBarColor(element, score) {
  * Update emotion display with new scores
  */
 function updateEmotions(emotions) {
+    // Update chat emotions if chat module is loaded
+    if (window.chatModule && window.chatModule.updateChatEmotions) {
+        window.chatModule.updateChatEmotions(emotions);
+    }
+    
     Object.keys(emotions).forEach(emotion => {
         const score = emotions[emotion];
         const previousScore = emotionData[emotion] || 0;

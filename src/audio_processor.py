@@ -193,30 +193,49 @@ class AudioProcessor:
                     mapped[std_label] = score
         
         # Derive additional emotions from available data
-        # These are heuristic mappings
+        # More sensitive heuristic mappings with boost
+        boost = 1.3  # Extra sensitivity for audio emotions
+        
         if 'angry' in raw_emotions:
-            mapped['frustrated'] = max(mapped['frustrated'], raw_emotions['angry'] * 0.7)
-            mapped['stressed'] = max(mapped['stressed'], raw_emotions['angry'] * 0.5)
+            mapped['frustrated'] = min(1.0, max(mapped['frustrated'], raw_emotions['angry'] * 0.9 * boost))
+            mapped['stressed'] = min(1.0, max(mapped['stressed'], raw_emotions['angry'] * 0.7 * boost))
+            mapped['engaged'] = min(1.0, raw_emotions['angry'] * 0.4 * boost)  # Anger shows engagement
         
         if 'calm' in raw_emotions:
-            mapped['calm'] = raw_emotions['calm']
-            mapped['confident'] = raw_emotions['calm'] * 0.6
+            mapped['calm'] = min(1.0, raw_emotions['calm'] * boost)
+            mapped['confident'] = min(1.0, raw_emotions['calm'] * 0.8 * boost)
+            mapped['engaged'] = min(1.0, max(mapped['engaged'], raw_emotions['calm'] * 0.3 * boost))
         
         if 'happy' in raw_emotions:
-            mapped['excited'] = raw_emotions['happy'] * 0.7
-            mapped['engaged'] = raw_emotions['happy'] * 0.5
-            mapped['interested'] = raw_emotions['happy'] * 0.6
+            mapped['excited'] = min(1.0, raw_emotions['happy'] * 0.9 * boost)
+            mapped['engaged'] = min(1.0, max(mapped['engaged'], raw_emotions['happy'] * 0.7 * boost))
+            mapped['interested'] = min(1.0, raw_emotions['happy'] * 0.8 * boost)
+            mapped['confident'] = min(1.0, max(mapped['confident'], raw_emotions['happy'] * 0.5 * boost))
         
         if 'neutral' in raw_emotions:
-            mapped['bored'] = raw_emotions['neutral'] * 0.4
+            # Neutral can indicate various states
+            mapped['bored'] = min(1.0, raw_emotions['neutral'] * 0.5 * boost)
+            mapped['calm'] = min(1.0, max(mapped['calm'], raw_emotions['neutral'] * 0.3 * boost))
         
         if 'surprise' in raw_emotions:
-            mapped['curious'] = raw_emotions['surprise'] * 0.8
-            mapped['interested'] = max(mapped['interested'], raw_emotions['surprise'] * 0.6)
+            mapped['curious'] = min(1.0, raw_emotions['surprise'] * 0.9 * boost)
+            mapped['interested'] = min(1.0, max(mapped['interested'], raw_emotions['surprise'] * 0.8 * boost))
+            mapped['engaged'] = min(1.0, max(mapped['engaged'], raw_emotions['surprise'] * 0.6 * boost))
         
         if 'fear' in raw_emotions:
-            mapped['anxious'] = raw_emotions['fear'] * 0.9
-            mapped['confused'] = raw_emotions['fear'] * 0.4
+            mapped['anxious'] = min(1.0, raw_emotions['fear'] * 0.95 * boost)
+            mapped['confused'] = min(1.0, raw_emotions['fear'] * 0.6 * boost)
+            mapped['stressed'] = min(1.0, max(mapped['stressed'], raw_emotions['fear'] * 0.7 * boost))
+        
+        if 'sad' in raw_emotions:
+            mapped['bored'] = min(1.0, max(mapped['bored'], raw_emotions['sad'] * 0.6 * boost))
+            mapped['stressed'] = min(1.0, max(mapped['stressed'], raw_emotions['sad'] * 0.5 * boost))
+        
+        # Add some baseline engagement if any emotion is detected
+        total_emotion = sum(raw_emotions.values())
+        if total_emotion > 0.1:
+            mapped['engaged'] = min(1.0, max(mapped['engaged'], total_emotion * 0.2 * boost))
+            mapped['interested'] = min(1.0, max(mapped['interested'], total_emotion * 0.15 * boost))
         
         return mapped
     

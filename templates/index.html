@@ -81,6 +81,32 @@
                 </div>
             </div>
 
+            <!-- AI Chat Section -->
+            <div class="chat-section">
+                <div class="chat-header">
+                    <h3 class="chat-title">🤖 Emotion-Aware AI Assistant</h3>
+                    <div class="emotion-indicator" id="emotionIndicator">🧠 Analyzing your mood...</div>
+                </div>
+                <div class="chat-messages" id="chatMessages">
+                    <!-- Messages will be populated by JavaScript -->
+                </div>
+                <div class="chat-input-area">
+                    <textarea 
+                        id="chatInput" 
+                        placeholder="Type your message... (Shift+Enter for new line)" 
+                        rows="2"
+                    ></textarea>
+                    <div class="chat-buttons">
+                        <button id="sendBtn" class="btn btn-send">
+                            <span>Send</span>
+                        </button>
+                        <button id="clearChatBtn" class="btn btn-clear-chat">
+                            <span>Clear</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Info Panel -->
             <div class="info-panel">
                 <h3 class="info-title">System Information</h3>
@@ -136,6 +162,7 @@
     </div>
 
     <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
 </body>
 </html>
 

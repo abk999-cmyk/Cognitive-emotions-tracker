@@ -36,6 +36,7 @@ class EmotionFusion:
     ) -> Dict[str, float]:
         """
         Combine video and audio emotion scores into unified emotion profile
+        Works with video-only if audio fails
         
         Args:
             video_emotions: Emotion scores from facial analysis
@@ -45,26 +46,68 @@ class EmotionFusion:
             Dictionary with all 25-30 emotions normalized to 0-1 range
         """
         fused_emotions = {}
+        sensitivity_boost = PROCESSING_CONFIG.get('sensitivity_boost', 1.0)
         
-        # Process base visual emotions
+        # Check if audio is working
+        audio_working = any(audio_emotions.values()) if audio_emotions else False
+        
+        # Process base visual emotions with sensitivity boost
         for emotion in ['happy', 'sad', 'angry', 'fear', 'surprise', 'disgust', 'neutral']:
             video_score = video_emotions.get(emotion, 0.0)
-            fused_emotions[emotion] = video_score * self.video_weight
+            # Apply sensitivity boost to amplify small changes
+            boosted_score = min(1.0, video_score * sensitivity_boost)
+            fused_emotions[emotion] = boosted_score
         
-        # Process base audio emotions
-        for emotion in ['calm', 'excited', 'frustrated', 'engaged', 'confused', 
-                       'anxious', 'confident', 'interested', 'bored', 'curious', 'stressed']:
-            audio_score = audio_emotions.get(emotion, 0.0)
-            fused_emotions[emotion] = audio_score * self.audio_weight
+        # If audio isn't working, derive audio emotions from video
+        if not audio_working:
+            # Derive audio-like emotions from facial expressions (reduced multipliers to prevent maxing)
+            fused_emotions['calm'] = min(0.85, (video_emotions.get('neutral', 0.0) * 0.5 + 
+                                               (1.0 - video_emotions.get('angry', 0.0)) * 0.2) * sensitivity_boost)
+            fused_emotions['excited'] = min(0.85, (video_emotions.get('happy', 0.0) * 0.6 + 
+                                                   video_emotions.get('surprise', 0.0) * 0.3) * sensitivity_boost)
+            fused_emotions['frustrated'] = min(0.85, (video_emotions.get('angry', 0.0) * 0.6 + 
+                                                      video_emotions.get('disgust', 0.0) * 0.2) * sensitivity_boost)
+            fused_emotions['engaged'] = min(0.85, (1.0 - video_emotions.get('neutral', 0.0)) * 0.4 * sensitivity_boost)
+            fused_emotions['confused'] = min(0.85, (video_emotions.get('surprise', 0.0) * 0.3 + 
+                                                    video_emotions.get('fear', 0.0) * 0.2) * sensitivity_boost)
+            fused_emotions['anxious'] = min(0.85, (video_emotions.get('fear', 0.0) * 0.7 + 
+                                                   video_emotions.get('sad', 0.0) * 0.2) * sensitivity_boost)
+            fused_emotions['confident'] = min(0.85, (video_emotions.get('happy', 0.0) * 0.4 + 
+                                                     (1.0 - video_emotions.get('fear', 0.0)) * 0.2) * sensitivity_boost)
+            fused_emotions['interested'] = min(0.85, (video_emotions.get('surprise', 0.0) * 0.4 + 
+                                                      video_emotions.get('happy', 0.0) * 0.3) * sensitivity_boost)
+            fused_emotions['bored'] = min(0.85, video_emotions.get('neutral', 0.0) * 0.4 * sensitivity_boost)
+            fused_emotions['curious'] = min(0.85, (video_emotions.get('surprise', 0.0) * 0.6 + 
+                                                   (1.0 - video_emotions.get('neutral', 0.0)) * 0.15) * sensitivity_boost)
+            fused_emotions['stressed'] = min(0.85, (video_emotions.get('angry', 0.0) * 0.4 + 
+                                                    video_emotions.get('fear', 0.0) * 0.4) * sensitivity_boost)
+        else:
+            # Process audio emotions normally
+            for emotion in ['calm', 'excited', 'frustrated', 'engaged', 'confused', 
+                           'anxious', 'confident', 'interested', 'bored', 'curious', 'stressed']:
+                audio_score = audio_emotions.get(emotion, 0.0)
+                boosted_score = min(1.0, audio_score * sensitivity_boost)
+                fused_emotions[emotion] = boosted_score * self.audio_weight
         
         # Derive composite emotions
-        fused_emotions.update(self._derive_composite_emotions(video_emotions, audio_emotions))
+        fused_emotions.update(self._derive_composite_emotions(video_emotions, fused_emotions if not audio_working else audio_emotions))
         
         # Apply temporal smoothing
         fused_emotions = self._apply_temporal_smoothing(fused_emotions)
         
-        # Normalize to 0-1 range
+        # Add micro-variation to prevent stuck values (smaller to avoid spikes)
+        import random
+        for emotion in fused_emotions:
+            if fused_emotions[emotion] > 0.05:  # Only vary emotions that are active
+                variation = random.uniform(-0.01, 0.01)  # Smaller variation
+                fused_emotions[emotion] = max(0.0, min(0.95, fused_emotions[emotion] + variation))  # Cap at 0.95
+        
+        # Normalize to 0-1 range but cap maximum
         fused_emotions = self._normalize_scores(fused_emotions)
+        # Ensure no emotion maxes out completely
+        for emotion in fused_emotions:
+            if fused_emotions[emotion] > 0.92:
+                fused_emotions[emotion] = 0.92
         
         # Update previous scores
         self.previous_scores = fused_emotions.copy()
@@ -78,83 +121,96 @@ class EmotionFusion:
     ) -> Dict[str, float]:
         """
         Derive complex emotions from combinations of base emotions
+        More sensitive to small changes
         """
         composite = {}
+        boost = PROCESSING_CONFIG.get('sensitivity_boost', 1.0)
         
-        # Receptiveness: engagement + positive emotions
-        engaged = audio_emotions.get('engaged', 0.0)
-        happy = video_emotions.get('happy', 0.0)
-        interested = audio_emotions.get('interested', 0.0)
-        composite['receptiveness'] = (engaged * 0.5 + happy * 0.3 + interested * 0.2)
+        # Receptiveness: engagement + positive emotions (balanced)
+        engaged = audio_emotions.get('engaged', 0.0) * boost
+        happy = video_emotions.get('happy', 0.0) * boost
+        interested = audio_emotions.get('interested', 0.0) * boost
+        composite['receptiveness'] = min(0.88, engaged * 0.3 + happy * 0.25 + interested * 0.2)
         
-        # Awareness: attention indicators
-        surprise = video_emotions.get('surprise', 0.0)
-        interested = audio_emotions.get('interested', 0.0)
-        engaged = audio_emotions.get('engaged', 0.0)
-        composite['awareness'] = (surprise * 0.3 + interested * 0.4 + engaged * 0.3)
+        # Awareness: attention indicators (balanced)
+        surprise = video_emotions.get('surprise', 0.0) * boost
+        interested = audio_emotions.get('interested', 0.0) * boost
+        engaged = audio_emotions.get('engaged', 0.0) * boost
+        composite['awareness'] = min(0.88, surprise * 0.25 + interested * 0.25 + engaged * 0.25)
         
-        # Trust: calm + happy
-        calm = audio_emotions.get('calm', 0.0)
-        happy = video_emotions.get('happy', 0.0)
-        confident = audio_emotions.get('confident', 0.0)
-        composite['trust'] = (calm * 0.4 + happy * 0.3 + confident * 0.3)
+        # Trust: calm + happy + confident (balanced)
+        calm = audio_emotions.get('calm', 0.0) * boost
+        happy = video_emotions.get('happy', 0.0) * boost
+        confident = audio_emotions.get('confident', 0.0) * boost
+        composite['trust'] = min(0.88, calm * 0.25 + happy * 0.2 + confident * 0.25)
         
-        # Anticipation: excited + curious
-        excited = audio_emotions.get('excited', 0.0)
-        curious = audio_emotions.get('curious', 0.0)
-        surprise = video_emotions.get('surprise', 0.0)
-        composite['anticipation'] = (excited * 0.4 + curious * 0.4 + surprise * 0.2)
+        # Anticipation: excited + curious (balanced)
+        excited = audio_emotions.get('excited', 0.0) * boost
+        curious = audio_emotions.get('curious', 0.0) * boost
+        surprise = video_emotions.get('surprise', 0.0) * boost
+        composite['anticipation'] = min(0.88, excited * 0.3 + curious * 0.25 + surprise * 0.2)
         
-        # Relaxed: calm + neutral
-        calm = audio_emotions.get('calm', 0.0)
+        # Relaxed: calm + neutral (balanced)
+        calm = audio_emotions.get('calm', 0.0) * boost
+        neutral = video_emotions.get('neutral', 0.0) * boost
+        composite['relaxed'] = min(0.88, calm * 0.35 + neutral * 0.3)
+        
+        # Skeptical: confused + neutral (balanced)
+        confused = audio_emotions.get('confused', 0.0) * boost
         neutral = video_emotions.get('neutral', 0.0)
-        composite['relaxed'] = (calm * 0.6 + neutral * 0.4)
+        composite['skeptical'] = min(0.88, confused * 0.4 + neutral * 0.2)
         
-        # Skeptical: confused + neutral
-        confused = audio_emotions.get('confused', 0.0)
-        neutral = video_emotions.get('neutral', 0.0)
-        composite['skeptical'] = (confused * 0.6 + neutral * 0.4)
-        
-        # Distracted: inverse of engaged
+        # Distracted: inverse of engaged (balanced)
         engaged = audio_emotions.get('engaged', 0.0)
-        bored = audio_emotions.get('bored', 0.0)
-        composite['distracted'] = (1.0 - engaged) * 0.5 + bored * 0.5
-        
-        # Enthusiastic: excited + happy
-        excited = audio_emotions.get('excited', 0.0)
-        happy = video_emotions.get('happy', 0.0)
-        composite['enthusiastic'] = (excited * 0.6 + happy * 0.4)
-        
-        # Contemplative: neutral + interested
+        bored = audio_emotions.get('bored', 0.0) * boost
         neutral = video_emotions.get('neutral', 0.0)
-        interested = audio_emotions.get('interested', 0.0)
-        composite['contemplative'] = (neutral * 0.5 + interested * 0.5)
+        composite['distracted'] = min(0.88, (1.0 - engaged) * 0.25 + bored * 0.25 + neutral * 0.15)
         
-        # Alert: awareness + surprise
-        surprise = video_emotions.get('surprise', 0.0)
-        engaged = audio_emotions.get('engaged', 0.0)
-        composite['alert'] = (surprise * 0.6 + engaged * 0.4)
+        # Enthusiastic: excited + happy (balanced)
+        excited = audio_emotions.get('excited', 0.0) * boost
+        happy = video_emotions.get('happy', 0.0) * boost
+        composite['enthusiastic'] = min(0.88, excited * 0.4 + happy * 0.3)
+        
+        # Contemplative: neutral + interested (balanced)
+        neutral = video_emotions.get('neutral', 0.0)
+        interested = audio_emotions.get('interested', 0.0) * boost
+        composite['contemplative'] = min(0.88, neutral * 0.25 + interested * 0.4)
+        
+        # Alert: awareness + surprise (balanced)
+        surprise = video_emotions.get('surprise', 0.0) * boost
+        engaged = audio_emotions.get('engaged', 0.0) * boost
+        composite['alert'] = min(0.88, surprise * 0.4 + engaged * 0.3)
         
         return composite
     
     def _apply_temporal_smoothing(self, current_scores: Dict[str, float]) -> Dict[str, float]:
         """
         Apply exponential moving average to smooth emotion transitions
-        Prevents jittery updates
+        Prevents jittery updates and allows emotions to persist
         
         smoothed = alpha * current + (1 - alpha) * previous
         """
         smoothed = {}
+        decay_rate = PROCESSING_CONFIG.get('emotion_decay_rate', 0.9)
         
         for emotion in EMOTION_LIST:
             current = current_scores.get(emotion, 0.0)
             previous = self.previous_scores.get(emotion, 0.0)
             
-            # Exponential moving average
-            smoothed[emotion] = (
-                self.smoothing_alpha * current + 
-                (1 - self.smoothing_alpha) * previous
-            )
+            # If current value is higher, update quickly
+            # If current is lower, decay gradually
+            if current >= previous:
+                # Rise quickly to new emotions
+                smoothed[emotion] = (
+                    self.smoothing_alpha * current + 
+                    (1 - self.smoothing_alpha) * previous
+                )
+            else:
+                # Decay slowly when emotion reduces
+                smoothed[emotion] = max(
+                    current,
+                    previous * decay_rate  # Gradual decay instead of instant drop
+                )
         
         return smoothed
     

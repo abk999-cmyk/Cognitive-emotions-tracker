@@ -5,6 +5,10 @@ Contains all settings for video, audio processing, and emotion tracking
 
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Base paths
 BASE_DIR = Path(__file__).parent.parent
@@ -39,11 +43,13 @@ MODEL_CONFIG = {
 
 # Processing settings
 PROCESSING_CONFIG = {
-    'update_frequency': 0.5,  # Update every 0.5 seconds
+    'update_frequency': 0.1,  # Update every 0.1 seconds (real-time)
     'video_enabled': True,
     'audio_enabled': True,
-    'temporal_smoothing_alpha': 0.3,  # Smoothing factor (0-1)
-    'min_face_confidence': 0.5,  # Minimum confidence for face detection
+    'temporal_smoothing_alpha': 0.6,  # Smoothing factor (0-1, balanced for stability)
+    'min_face_confidence': 0.3,  # Minimum confidence for face detection
+    'sensitivity_boost': 1.3,  # Amplify small changes (reduced to prevent maxing out)
+    'emotion_decay_rate': 0.95,  # How much emotions persist (0.95 = 95% retained per update)
 }
 
 # Comprehensive emotion list (25-30 emotions)
@@ -124,7 +130,17 @@ MESH_CONFIG = {
     'show_tesselation': True,  # Show full face tesselation
     'show_contours': True,  # Show face contours
     'show_irises': True,  # Show iris tracking
-    'confidence_threshold': 0.5,  # Minimum detection confidence
+    'confidence_threshold': 0.3,  # Minimum detection confidence (lowered for sensitivity)
+}
+
+# OpenAI Chat Configuration
+OPENAI_CONFIG = {
+    'api_key': os.getenv('OPENAI_API_KEY'),  # Load from environment variable
+    'model': 'gpt-4o',  # GPT-4o for best emotional intelligence
+    'max_tokens': 500,  # Reasonable response length
+    'temperature': 0.8,  # Balanced creativity and consistency
+    'rate_limit': 30,  # Max 30 messages per minute
+    'max_history': 10,  # Keep last 10 messages for context
 }
 
 

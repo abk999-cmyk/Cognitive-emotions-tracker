@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from video_processor import VideoProcessor
 from audio_processor import AudioProcessor
 from emotion_fusion import EmotionFusion
+from openai_chat import EmotionAwareChatbot
 from config import (
     FLASK_CONFIG,
     PROCESSING_CONFIG,
@@ -49,13 +50,14 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 video_processor = None
 audio_processor = None
 emotion_fusion = None
+chatbot = None
 tracking_active = False
 emission_thread = None
 
 
 def initialize_processors():
     """Initialize all processing components"""
-    global video_processor, audio_processor, emotion_fusion
+    global video_processor, audio_processor, emotion_fusion, chatbot
     
     try:
         logger.info("Initializing emotion tracking system...")
@@ -64,6 +66,7 @@ def initialize_processors():
         video_processor = VideoProcessor()
         audio_processor = AudioProcessor()
         emotion_fusion = EmotionFusion()
+        chatbot = EmotionAwareChatbot()
         
         logger.info("Processors initialized successfully")
         return True
@@ -320,6 +323,131 @@ def handle_get_current_emotions():
     except Exception as e:
         logger.error(f"Error getting current emotions: {e}")
         emit('error', {'message': str(e)})
+
+
+# ============================================================================
+# CHAT API ROUTES
+# ============================================================================
+
+@app.route('/api/chat', methods=['POST'])
+def chat():
+    """Send a message to the emotion-aware AI assistant"""
+    try:
+        from flask import request
+        
+        # Get request data
+        data = request.get_json()
+        
+        if not data or 'message' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'Message is required'
+            }), 400
+        
+        user_message = data['message']
+        
+        # Get current emotions
+        video_emotions = video_processor.get_emotions() if video_processor else {}
+        audio_emotions = audio_processor.get_emotions() if audio_processor else {}
+        
+        if emotion_fusion:
+            current_emotions = emotion_fusion.get_all_emotions(video_emotions, audio_emotions)
+        else:
+            current_emotions = {emotion: 0.0 for emotion in EMOTION_LIST}
+        
+        # Initialize chatbot if not done
+        global chatbot
+        if not chatbot:
+            chatbot = EmotionAwareChatbot()
+        
+        # Send message to chatbot with emotion context
+        result = chatbot.send_message(user_message, current_emotions)
+        
+        if result['success']:
+            logger.info(f"Chat response generated with tone: {result.get('tone_used', 'unknown')}")
+            return jsonify(result)
+        else:
+            logger.error(f"Chat error: {result.get('error', 'Unknown error')}")
+            return jsonify(result), 500
+        
+    except Exception as e:
+        logger.error(f"Error in chat endpoint: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'response': "I apologize, but I'm experiencing technical difficulties. Please try again."
+        }), 500
+
+
+@app.route('/api/chat/history', methods=['GET'])
+def get_chat_history():
+    """Get conversation history"""
+    try:
+        if chatbot:
+            history = chatbot.get_conversation_history()
+            return jsonify({
+                'success': True,
+                'history': history,
+                'count': len(history)
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'history': [],
+                'count': 0
+            })
+    except Exception as e:
+        logger.error(f"Error getting chat history: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/chat/reset', methods=['DELETE'])
+def reset_chat():
+    """Clear conversation history"""
+    try:
+        if chatbot:
+            chatbot.clear_history()
+            logger.info("Chat history cleared")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Conversation history cleared'
+        })
+    except Exception as e:
+        logger.error(f"Error resetting chat: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/chat/stats', methods=['GET'])
+def get_chat_stats():
+    """Get chatbot statistics"""
+    try:
+        if chatbot:
+            stats = chatbot.get_stats()
+            return jsonify({
+                'success': True,
+                'stats': stats
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'stats': {
+                    'messages_in_history': 0,
+                    'messages_last_minute': 0
+                }
+            })
+    except Exception as e:
+        logger.error(f"Error getting chat stats: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 
 def cleanup():
