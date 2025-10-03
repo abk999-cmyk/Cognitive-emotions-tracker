@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Emotion Tracking System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1 class="title">
+                <span class="emoji">🧠</span>
+                AI Emotion Tracking System
+            </h1>
+            <p class="subtitle">Real-time cognitive and emotional state analysis</p>
+        </header>
+
+        <!-- Status Bar -->
+        <div class="status-bar">
+            <div class="status-indicator" id="statusIndicator">
+                <span class="status-dot inactive"></span>
+                <span class="status-text">Inactive</span>
+            </div>
+            <div class="timestamp" id="timestamp">Last update: Never</div>
+        </div>
+
+        <!-- Control Panel -->
+        <div class="control-panel">
+            <button id="startBtn" class="btn btn-start">
+                <span class="btn-icon">▶</span>
+                Start Tracking
+            </button>
+            <button id="stopBtn" class="btn btn-stop" disabled>
+                <span class="btn-icon">■</span>
+                Stop Tracking
+            </button>
+        </div>
+
+        <!-- Main Content -->
+        <div class="content">
+            <!-- Video Feed Section -->
+            <div class="video-section">
+                <h2 class="section-title">Live Video Feed</h2>
+                <div class="video-container">
+                    <img id="videoFeed" src="" alt="Video feed will appear here when tracking starts" class="video-feed">
+                    <div id="videoPlaceholder" class="video-placeholder">
+                        <div class="placeholder-content">
+                            <span class="placeholder-icon">📹</span>
+                            <p>Video feed will appear here</p>
+                            <p class="placeholder-hint">Click "Start Tracking" to begin</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="video-controls">
+                    <label class="toggle-label">
+                        <input type="checkbox" id="meshToggle" checked>
+                        <span>Show Face Mesh</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Emotion Table -->
+            <div class="emotion-section">
+                <h2 class="section-title">Emotion Scores</h2>
+                <div class="table-container">
+                    <table class="emotion-table" id="emotionTable">
+                        <thead>
+                            <tr>
+                                <th>Emotion</th>
+                                <th>Score</th>
+                                <th>Intensity</th>
+                            </tr>
+                        </thead>
+                        <tbody id="emotionTableBody">
+                            <!-- Emotions will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Info Panel -->
+            <div class="info-panel">
+                <h3 class="info-title">System Information</h3>
+                <div class="info-content">
+                    <div class="info-item">
+                        <span class="info-label">Total Emotions:</span>
+                        <span class="info-value" id="emotionCount">30</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Update Rate:</span>
+                        <span class="info-value">0.5s</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Video Processing:</span>
+                        <span class="info-value status-badge active">Active</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Audio Processing:</span>
+                        <span class="info-value status-badge active">Active</span>
+                    </div>
+                </div>
+
+                <!-- Connection Status -->
+                <div class="connection-status" id="connectionStatus">
+                    <div class="connection-icon">🔌</div>
+                    <div class="connection-text">
+                        <strong>WebSocket Status:</strong>
+                        <span id="wsStatus">Connecting...</span>
+                    </div>
+                </div>
+
+                <!-- Instructions -->
+                <div class="instructions">
+                    <h4>Instructions:</h4>
+                    <ol>
+                        <li>Click "Start Tracking" to begin</li>
+                        <li>Allow camera and microphone access</li>
+                        <li>View real-time emotion scores in the table</li>
+                        <li>Scores range from 0.00 (low) to 1.00 (high)</li>
+                        <li>Click "Stop Tracking" when finished</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Powered by OpenCV, DeepFace, Wav2Vec2, and Flask-SocketIO</p>
+            <p class="tech-stack">
+                🎥 Video Analysis | 🎤 Speech Recognition | 🧠 AI Fusion
+            </p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>
+
+
