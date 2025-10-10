@@ -99,6 +99,7 @@ FUSION_WEIGHTS = {
 LOGGING_CONFIG = {
     'log_file': LOGS_DIR / 'emotion_tracker.log',
     'error_log_file': LOGS_DIR / 'errors.log',
+    'ui_log_file': LOGS_DIR / 'ui_client.log',
     'log_level': 'INFO',
     'log_format': '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
 }
@@ -141,6 +142,16 @@ OPENAI_CONFIG = {
     'temperature': 0.8,  # Balanced creativity and consistency
     'rate_limit': 30,  # Max 30 messages per minute
     'max_history': 10,  # Keep last 10 messages for context
+}
+
+# Tone Override Options
+TONE_OVERRIDES = {
+    'auto': 'Automatically adapt tone based on detected emotions',
+    'calming': 'Always use a calming and reassuring tone',
+    'empathetic': 'Always use an empathetic and supportive tone',
+    'enthusiastic': 'Always use an enthusiastic and celebratory tone',
+    'professional': 'Always use a balanced and professional tone',
+    'patient': 'Always use a clear and patient tone'
 }
 
 

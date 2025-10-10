@@ -72,12 +72,13 @@ class EmotionAwareChatbot:
         
         return emotion_profile, high_emotions, f"{dominant_name} ({dominant_score:.2f})"
     
-    def build_system_prompt(self, emotions: Dict[str, float]) -> str:
+    def build_system_prompt(self, emotions: Dict[str, float], tone_override: str = 'auto') -> str:
         """
         Build the emotion-aware system prompt
         
         Args:
             emotions: Current emotion scores
+            tone_override: Optional tone override
             
         Returns:
             Complete system prompt with emotion context
@@ -86,6 +87,18 @@ class EmotionAwareChatbot:
         
         high_emotions_str = ", ".join(high_emotions) if high_emotions else "None"
         
+        # Apply tone override if specified
+        tone_instruction = ""
+        if tone_override and tone_override != 'auto':
+            tone_map = {
+                'calming': 'OVERRIDE: Always use a calming and reassuring tone, regardless of detected emotions.',
+                'empathetic': 'OVERRIDE: Always use an empathetic and supportive tone, regardless of detected emotions.',
+                'enthusiastic': 'OVERRIDE: Always use an enthusiastic and celebratory tone, regardless of detected emotions.',
+                'professional': 'OVERRIDE: Always use a balanced and professional tone, regardless of detected emotions.',
+                'patient': 'OVERRIDE: Always use a clear and patient tone with step-by-step explanations, regardless of detected emotions.'
+            }
+            tone_instruction = f"\n\n{tone_map.get(tone_override, '')}"
+        
         system_prompt = f"""You are an empathetic AI assistant with emotional intelligence. 
 You are currently talking to someone with the following emotional state:
 
@@ -93,7 +106,7 @@ EMOTIONAL PROFILE (scale 0.0-1.0):
 {emotion_profile}
 
 HIGH EMOTIONS (>0.6): {high_emotions_str}
-DOMINANT EMOTION: {dominant_emotion}
+DOMINANT EMOTION: {dominant_emotion}{tone_instruction}
 
 RESPONSE GUIDELINES:
 - If anxious/stressed (>0.5): Be calming, reassuring, break things into simple steps
@@ -144,7 +157,8 @@ Remember: The user may not be explicitly aware of their emotional state. Your jo
     def send_message(
         self, 
         user_message: str, 
-        emotions: Dict[str, float]
+        emotions: Dict[str, float],
+        tone_override: str = 'auto'
     ) -> Dict:
         """
         Send a message to the AI with emotion context
@@ -152,6 +166,7 @@ Remember: The user may not be explicitly aware of their emotional state. Your jo
         Args:
             user_message: User's message
             emotions: Current emotion scores
+            tone_override: Optional tone override ('auto', 'calming', etc.)
             
         Returns:
             Dictionary with response and metadata
@@ -165,8 +180,8 @@ Remember: The user may not be explicitly aware of their emotional state. Your jo
                     'response': None
                 }
             
-            # Build system prompt with emotion context
-            system_prompt = self.build_system_prompt(emotions)
+            # Build system prompt with emotion context and tone override
+            system_prompt = self.build_system_prompt(emotions, tone_override)
             
             # Build messages array
             messages = [
@@ -200,8 +215,11 @@ Remember: The user may not be explicitly aware of their emotional state. Your jo
             # Identify which emotions influenced the response
             _, high_emotions, dominant_emotion = self.build_emotion_context(emotions)
             
-            # Determine tone used
-            tone = self._determine_tone(emotions)
+            # Determine tone used (considering override)
+            if tone_override and tone_override != 'auto':
+                tone = f"{tone_override} (override)"
+            else:
+                tone = self._determine_tone(emotions)
             
             logger.info(f"Generated response with tone: {tone}")
             

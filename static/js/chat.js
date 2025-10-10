@@ -14,6 +14,10 @@ const chatInput = document.getElementById('chatInput');
 const sendBtn = document.getElementById('sendBtn');
 const clearChatBtn = document.getElementById('clearChatBtn');
 const emotionIndicator = document.getElementById('emotionIndicator');
+const toneSelect = document.getElementById('toneSelect');
+const explainToneBtn = document.getElementById('explainToneBtn');
+const explainabilityPanel = document.getElementById('explainabilityPanel');
+const closeExplainPanel = document.getElementById('closeExplainPanel');
 
 /**
  * Initialize chat module
@@ -25,6 +29,18 @@ function initChat() {
     sendBtn.addEventListener('click', sendMessage);
     clearChatBtn.addEventListener('click', clearChat);
     
+    if (explainToneBtn) {
+        explainToneBtn.addEventListener('click', toggleExplainability);
+    }
+    
+    if (closeExplainPanel) {
+        closeExplainPanel.addEventListener('click', () => {
+            if (explainabilityPanel) {
+                explainabilityPanel.style.display = 'none';
+            }
+        });
+    }
+    
     // Allow Enter to send (Shift+Enter for newline)
     chatInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -32,6 +48,9 @@ function initChat() {
             sendMessage();
         }
     });
+    
+    // Load tone overrides
+    loadToneOverrides();
     
     // Add welcome message
     addSystemMessage("Hello! I'm your emotion-aware AI assistant. I can sense your emotional state and adapt my responses accordingly. How can I help you today?");
@@ -125,6 +144,9 @@ async function sendMessage() {
         return;
     }
     
+    // Get tone override
+    const toneOverride = toneSelect ? toneSelect.value : 'auto';
+    
     // Disable input while sending
     chatInput.disabled = true;
     sendBtn.disabled = true;
@@ -147,7 +169,8 @@ async function sendMessage() {
             },
             body: JSON.stringify({
                 message: message,
-                emotions: currentEmotions
+                emotions: currentEmotions,
+                tone_override: toneOverride
             })
         });
         
@@ -159,6 +182,10 @@ async function sendMessage() {
         if (data.success) {
             // Add AI response
             addAIMessage(data.response, data.tone_used, data.emotions_detected);
+            
+            // Update explainability panel
+            updateExplainability(data.emotions_detected, data.tone_used);
+            
             messageCount++;
         } else {
             // Show error
@@ -167,6 +194,7 @@ async function sendMessage() {
         
     } catch (error) {
         console.error('Chat error:', error);
+        uiLogger.error('Chat send error', error);
         removeTypingIndicator(typingId);
         addErrorMessage('Connection error. Please try again.');
     } finally {
@@ -355,6 +383,84 @@ function showChatNotification(message, type) {
     } else {
         console.log(`[${type}] ${message}`);
     }
+}
+
+/**
+ * Load tone override options from server
+ */
+async function loadToneOverrides() {
+    try {
+        const response = await fetch('/api/tone_overrides');
+        const data = await response.json();
+        
+        if (data.success && toneSelect) {
+            // Populate select options (keep existing HTML options)
+            // This is for future enhancement if we want dynamic loading
+        }
+    } catch (error) {
+        console.warn('Failed to load tone overrides:', error);
+    }
+}
+
+/**
+ * Toggle explainability panel
+ */
+function toggleExplainability() {
+    if (!explainabilityPanel) return;
+    
+    const isVisible = explainabilityPanel.style.display !== 'none';
+    explainabilityPanel.style.display = isVisible ? 'none' : 'block';
+}
+
+/**
+ * Update explainability panel with emotion contributors
+ */
+function updateExplainability(emotionsDetected, toneUsed) {
+    const contributorsList = document.getElementById('contributorsList');
+    if (!contributorsList) return;
+    
+    contributorsList.innerHTML = '';
+    
+    // Show detected emotions
+    if (emotionsDetected && emotionsDetected.length > 0) {
+        emotionsDetected.forEach(emotion => {
+            const score = currentEmotions[emotion] || 0;
+            
+            const contributorDiv = document.createElement('div');
+            contributorDiv.className = 'contributor-item';
+            
+            const meta = EmotionMetadata.getMetadata(emotion);
+            
+            contributorDiv.innerHTML = `
+                <div class="contributor-name">${meta.icon} ${emotion}</div>
+                <div class="contributor-bar-container">
+                    <div class="contributor-bar" style="width: ${score * 100}%"></div>
+                </div>
+                <div class="contributor-score">${score.toFixed(2)}</div>
+            `;
+            
+            contributorsList.appendChild(contributorDiv);
+        });
+    } else {
+        contributorsList.innerHTML = '<p>No strong emotions detected (neutral state)</p>';
+    }
+    
+    // Add tone explanation
+    const toneDiv = document.createElement('div');
+    toneDiv.className = 'tone-explanation';
+    toneDiv.innerHTML = `<p><strong>Tone Used:</strong> ${toneUsed}</p>`;
+    contributorsList.appendChild(toneDiv);
+    
+    // Add threshold info
+    const thresholdDiv = document.createElement('div');
+    thresholdDiv.className = 'threshold-info';
+    thresholdDiv.innerHTML = `
+        <p><small>
+            <strong>Detection Thresholds:</strong><br>
+            High: >0.6 | Medium: 0.33-0.6 | Low: <0.33
+        </small></p>
+    `;
+    contributorsList.appendChild(thresholdDiv);
 }
 
 // Export functions for use in dashboard

@@ -23,7 +23,8 @@ from config import (
     FLASK_CONFIG,
     PROCESSING_CONFIG,
     LOGGING_CONFIG,
-    EMOTION_LIST
+    EMOTION_LIST,
+    TONE_OVERRIDES
 )
 
 # Setup logging
@@ -325,6 +326,43 @@ def handle_get_current_emotions():
         emit('error', {'message': str(e)})
 
 
+@socketio.on('toggle_processing')
+def handle_toggle_processing(data):
+    """Toggle video or audio processing on/off"""
+    try:
+        process_type = data.get('type')  # 'video' or 'audio'
+        enabled = data.get('enabled', True)
+        
+        if process_type == 'video' and video_processor:
+            if enabled and not video_processor.is_running:
+                video_processor.start()
+                logger.info("Video processing enabled via settings")
+            elif not enabled and video_processor.is_running:
+                video_processor.stop()
+                logger.info("Video processing disabled via settings")
+        
+        elif process_type == 'audio' and audio_processor:
+            if enabled and not audio_processor.is_running:
+                audio_processor.start()
+                logger.info("Audio processing enabled via settings")
+            elif not enabled and audio_processor.is_running:
+                audio_processor.stop()
+                logger.info("Audio processing disabled via settings")
+        
+        emit('toggle_response', {
+            'success': True,
+            'type': process_type,
+            'enabled': enabled
+        })
+        
+    except Exception as e:
+        logger.error(f"Error toggling processing: {e}")
+        emit('toggle_response', {
+            'success': False,
+            'error': str(e)
+        })
+
+
 # ============================================================================
 # CHAT API ROUTES
 # ============================================================================
@@ -345,6 +383,7 @@ def chat():
             }), 400
         
         user_message = data['message']
+        tone_override = data.get('tone_override', 'auto')
         
         # Get current emotions
         video_emotions = video_processor.get_emotions() if video_processor else {}
@@ -360,8 +399,8 @@ def chat():
         if not chatbot:
             chatbot = EmotionAwareChatbot()
         
-        # Send message to chatbot with emotion context
-        result = chatbot.send_message(user_message, current_emotions)
+        # Send message to chatbot with emotion context and tone override
+        result = chatbot.send_message(user_message, current_emotions, tone_override)
         
         if result['success']:
             logger.info(f"Chat response generated with tone: {result.get('tone_used', 'unknown')}")
@@ -444,6 +483,57 @@ def get_chat_stats():
             })
     except Exception as e:
         logger.error(f"Error getting chat stats: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/ui_log', methods=['POST'])
+def ui_log():
+    """Receive and log UI client-side events"""
+    try:
+        from flask import request
+        import json
+        
+        data = request.get_json()
+        
+        if not data or 'logs' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'Logs array is required'
+            }), 400
+        
+        # Write to UI log file
+        ui_log_file = LOGGING_CONFIG.get('ui_log_file')
+        if ui_log_file:
+            with open(ui_log_file, 'a') as f:
+                for log_entry in data['logs']:
+                    f.write(json.dumps(log_entry) + '\n')
+        
+        return jsonify({
+            'success': True,
+            'logged': len(data['logs'])
+        })
+        
+    except Exception as e:
+        logger.error(f"Error logging UI events: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/tone_overrides', methods=['GET'])
+def get_tone_overrides():
+    """Get available tone override options"""
+    try:
+        return jsonify({
+            'success': True,
+            'overrides': TONE_OVERRIDES
+        })
+    except Exception as e:
+        logger.error(f"Error getting tone overrides: {e}")
         return jsonify({
             'success': False,
             'error': str(e)

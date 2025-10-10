@@ -4,42 +4,70 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Emotion Tracking System</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    
+    <!-- World-Class Design System -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/layout-grid.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat-modals.css') }}">
+    
+    <!-- External Libraries -->
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/@popperjs/core@2"></script>
+    <script src="https://unpkg.com/tippy.js@6"></script>
 </head>
 <body>
     <div class="container">
         <!-- Header -->
         <header class="header">
-            <h1 class="title">
-                <span class="emoji">🧠</span>
-                AI Emotion Tracking System
-            </h1>
-            <p class="subtitle">Real-time cognitive and emotional state analysis</p>
+            <div class="header-content">
+                <h1 class="title">AI Emotion Tracking System</h1>
+                <p class="subtitle">Real-time cognitive and emotional state analysis</p>
+            </div>
+            <div class="header-actions">
+                <button id="settingsBtn" class="btn btn-icon-only" aria-label="Open Settings" title="Settings (,)">
+                    Settings
+                </button>
+                <button id="helpBtn" class="btn btn-icon-only" aria-label="Help" title="Help (?)">
+                    Help
+                </button>
+            </div>
         </header>
 
         <!-- Status Bar -->
         <div class="status-bar">
             <div class="status-indicator" id="statusIndicator">
-                <span class="status-dot inactive"></span>
+                <span class="status-dot inactive" role="status"></span>
                 <span class="status-text">Inactive</span>
             </div>
             <div class="timestamp" id="timestamp">Last update: Never</div>
         </div>
 
         <!-- Control Panel -->
-        <div class="control-panel">
-            <button id="startBtn" class="btn btn-start">
+        <div class="control-panel" role="toolbar" aria-label="Tracking Controls">
+            <button id="startBtn" class="btn btn-start" aria-label="Start Tracking (s)">
                 <span class="btn-icon">▶</span>
                 Start Tracking
             </button>
-            <button id="stopBtn" class="btn btn-stop" disabled>
+            <button id="stopBtn" class="btn btn-stop" disabled aria-label="Stop Tracking (x)">
                 <span class="btn-icon">■</span>
                 Stop Tracking
             </button>
         </div>
 
-        <!-- Main Content -->
+        <!-- Emotion Timeline -->
+        <div class="timeline-section">
+            <div class="timeline-header">
+                <h3 class="section-title">Emotion Timeline (Last 60s)</h3>
+                <button id="clearTimelineBtn" class="btn btn-small">Clear</button>
+            </div>
+            <div class="timeline-container">
+                <canvas id="emotionTimeline" aria-label="Emotion timeline chart"></canvas>
+            </div>
+        </div>
+
+        <!-- Main Content Grid -->
         <div class="content">
             <!-- Video Feed Section -->
             <div class="video-section">
@@ -48,7 +76,6 @@
                     <img id="videoFeed" src="" alt="Video feed will appear here when tracking starts" class="video-feed">
                     <div id="videoPlaceholder" class="video-placeholder">
                         <div class="placeholder-content">
-                            <span class="placeholder-icon">📹</span>
                             <p>Video feed will appear here</p>
                             <p class="placeholder-hint">Click "Start Tracking" to begin</p>
                         </div>
@@ -64,7 +91,9 @@
 
             <!-- Emotion Table -->
             <div class="emotion-section">
-                <h2 class="section-title">Emotion Scores</h2>
+                <div class="emotion-header">
+                    <h2 class="section-title">Emotion Scores</h2>
+                </div>
                 <div class="table-container">
                     <table class="emotion-table" id="emotionTable">
                         <thead>
@@ -84,23 +113,59 @@
             <!-- AI Chat Section -->
             <div class="chat-section">
                 <div class="chat-header">
-                    <h3 class="chat-title">🤖 Emotion-Aware AI Assistant</h3>
-                    <div class="emotion-indicator" id="emotionIndicator">🧠 Analyzing your mood...</div>
+                    <h3 class="chat-title">Emotion-Aware AI Assistant</h3>
+                    <div class="chat-controls">
+                        <div class="emotion-indicator" id="emotionIndicator">
+                            <div class="emotion-details">
+                                <span class="emotion-name" id="dominantName">Neutral</span>
+                                <span class="emotion-score" id="dominantScore">0.00</span>
+                            </div>
+                        </div>
+                        <button id="explainToneBtn" class="btn btn-small" title="Why this tone?">Explain</button>
+                    </div>
                 </div>
-                <div class="chat-messages" id="chatMessages">
+                
+                <!-- Explainability Panel (Hidden by default) -->
+                <div class="explainability-panel" id="explainabilityPanel" style="display: none;">
+                    <div class="panel-header">
+                        <h4>Why This Tone?</h4>
+                        <button class="close-panel" id="closeExplainPanel">×</button>
+                    </div>
+                    <div class="panel-body" id="explainabilityContent">
+                        <p>Top contributing emotions:</p>
+                        <div id="contributorsList"></div>
+                    </div>
+                </div>
+                
+                <div class="chat-messages" id="chatMessages" role="log" aria-live="polite" aria-atomic="false">
                     <!-- Messages will be populated by JavaScript -->
                 </div>
+                
+                <!-- Tone Override Controls -->
+                <div class="tone-override">
+                    <label for="toneSelect">Tone:</label>
+                    <select id="toneSelect" class="tone-select">
+                        <option value="auto" selected>Auto</option>
+                        <option value="calming">Calming</option>
+                        <option value="empathetic">Empathetic</option>
+                        <option value="enthusiastic">Enthusiastic</option>
+                        <option value="professional">Professional</option>
+                        <option value="patient">Patient</option>
+                    </select>
+                </div>
+                
                 <div class="chat-input-area">
                     <textarea 
                         id="chatInput" 
                         placeholder="Type your message... (Shift+Enter for new line)" 
                         rows="2"
+                        aria-label="Chat message input"
                     ></textarea>
                     <div class="chat-buttons">
-                        <button id="sendBtn" class="btn btn-send">
+                        <button id="sendBtn" class="btn btn-send" aria-label="Send message">
                             <span>Send</span>
                         </button>
-                        <button id="clearChatBtn" class="btn btn-clear-chat">
+                        <button id="clearChatBtn" class="btn btn-clear-chat" aria-label="Clear chat history">
                             <span>Clear</span>
                         </button>
                     </div>
@@ -113,19 +178,19 @@
                 <div class="info-content">
                     <div class="info-item">
                         <span class="info-label">Total Emotions:</span>
-                        <span class="info-value" id="emotionCount">30</span>
+                        <span class="info-value" id="emotionCount">28</span>
                     </div>
                     <div class="info-item">
                         <span class="info-label">Update Rate:</span>
-                        <span class="info-value">0.5s</span>
+                        <span class="info-value" id="updateRate">0.5s</span>
                     </div>
                     <div class="info-item">
                         <span class="info-label">Video Processing:</span>
-                        <span class="info-value status-badge active">Active</span>
+                        <span class="info-value status-badge active" id="videoStatus">Active</span>
                     </div>
                     <div class="info-item">
                         <span class="info-label">Audio Processing:</span>
-                        <span class="info-value status-badge active">Active</span>
+                        <span class="info-value status-badge active" id="audioStatus">Active</span>
                     </div>
                 </div>
 
@@ -138,16 +203,33 @@
                     </div>
                 </div>
 
+                <!-- Privacy Notice -->
+                <div class="privacy-notice">
+                    <h4>🔒 Privacy First</h4>
+                    <p>All processing happens locally on your device. No data is recorded or transmitted externally.</p>
+                </div>
+
                 <!-- Instructions -->
                 <div class="instructions">
                     <h4>Instructions:</h4>
                     <ol>
                         <li>Click "Start Tracking" to begin</li>
                         <li>Allow camera and microphone access</li>
-                        <li>View real-time emotion scores in the table</li>
-                        <li>Scores range from 0.00 (low) to 1.00 (high)</li>
+                        <li>View real-time emotion scores</li>
+                        <li>Chat with emotion-aware AI</li>
                         <li>Click "Stop Tracking" when finished</li>
                     </ol>
+                </div>
+
+                <!-- Keyboard Shortcuts -->
+                <div class="shortcuts">
+                    <h4>Keyboard Shortcuts:</h4>
+                    <ul>
+                        <li><kbd>S</kbd> - Start tracking</li>
+                        <li><kbd>X</kbd> - Stop tracking</li>
+                        <li><kbd>,</kbd> - Open settings</li>
+                        <li><kbd>?</kbd> - Help</li>
+                    </ul>
                 </div>
             </div>
         </div>
@@ -156,14 +238,101 @@
         <footer class="footer">
             <p>Powered by OpenCV, DeepFace, Wav2Vec2, and Flask-SocketIO</p>
             <p class="tech-stack">
-                🎥 Video Analysis | 🎤 Speech Recognition | 🧠 AI Fusion
+                🎥 Video Analysis | 🎤 Speech Recognition | 🧠 AI Fusion | 🔒 Privacy First
             </p>
         </footer>
     </div>
 
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" aria-hidden="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="settingsTitle">⚙️ Settings</h2>
+                <button class="close-settings" aria-label="Close settings">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="setting-group">
+                    <label for="updateFrequency">Update Frequency:</label>
+                    <input type="range" id="updateFrequency" min="100" max="2000" step="100" value="500">
+                    <span id="updateFrequencyValue">500ms</span>
+                </div>
+                
+                <div class="setting-group">
+                    <label>
+                        <input type="checkbox" id="reducedMotion">
+                        Reduced Motion
+                    </label>
+                    <p class="setting-description">Minimize animations for better accessibility</p>
+                </div>
+                
+                <div class="setting-group">
+                    <label>
+                        <input type="checkbox" id="highContrast">
+                        High Contrast Theme
+                    </label>
+                    <p class="setting-description">Increase contrast for better visibility</p>
+                </div>
+                
+                <div class="setting-group">
+                    <label>
+                        <input type="checkbox" id="videoEnabled" checked>
+                        Enable Video Processing
+                    </label>
+                    <p class="setting-description">Toggle facial emotion recognition</p>
+                </div>
+                
+                <div class="setting-group">
+                    <label>
+                        <input type="checkbox" id="audioEnabled" checked>
+                        Enable Audio Processing
+                    </label>
+                    <p class="setting-description">Toggle speech emotion recognition</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="saveSettings" class="btn btn-primary">Save Settings</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help Modal -->
+    <div id="helpModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="helpTitle" aria-hidden="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="helpTitle">❓ Help & Information</h2>
+                <button class="close-help" aria-label="Close help">&times;</button>
+            </div>
+            <div class="modal-body">
+                <h3>About This System</h3>
+                <p>The AI Emotion Tracking System analyzes your facial expressions and speech to detect 28 different emotions in real-time.</p>
+                
+                <h3>How It Works</h3>
+                <ul>
+                    <li><strong>Video:</strong> DeepFace analyzes facial expressions</li>
+                    <li><strong>Audio:</strong> Wav2Vec2 analyzes speech patterns</li>
+                    <li><strong>Fusion:</strong> Combines both for accurate results</li>
+                    <li><strong>AI Chat:</strong> Adapts responses to your emotions</li>
+                </ul>
+                
+                <h3>Privacy & Security</h3>
+                <p>All processing happens locally on your device. No data is recorded, stored, or transmitted to external servers.</p>
+                
+                <h3>Need Help?</h3>
+                <p>Check the README.md file or visit the project documentation for detailed troubleshooting guides.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary close-help">Got It!</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load JavaScript Modules (Order matters!) -->
+    <script src="{{ url_for('static', filename='js/emotion_metadata.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/utils/dom.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/ui_logger.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/visualizations.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/settings.js') }}"></script>
     <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
     <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
 </body>
 </html>
-
-

@@ -1,0 +1,239 @@
+/* ============================================================================
+   RESPONSIVE GRID LAYOUT
+   ============================================================================ */
+
+.content {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: var(--space-xl);
+    margin-bottom: var(--space-2xl);
+}
+
+/* Video Section - 3 columns */
+.video-section {
+    grid-column: span 3;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    padding: var(--space-xl);
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-direction: column;
+}
+
+.video-container {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    background: var(--surface-2);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.video-feed {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: var(--radius-lg);
+    display: none;
+}
+
+.video-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface-2);
+    border-radius: var(--radius-lg);
+}
+
+.placeholder-content {
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+.placeholder-icon {
+    font-size: 4rem;
+    display: block;
+    margin-bottom: var(--space-md);
+    opacity: 0.4;
+}
+
+.placeholder-hint {
+    font-size: var(--text-sm);
+    margin-top: var(--space-xs);
+    color: var(--text-tertiary);
+}
+
+.video-controls {
+    margin-top: var(--space-lg);
+    display: flex;
+    justify-content: center;
+}
+
+.toggle-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    user-select: none;
+    transition: color var(--duration-fast) ease;
+}
+
+.toggle-label:hover {
+    color: var(--text-primary);
+}
+
+.toggle-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: var(--brand-primary);
+}
+
+/* Emotion Section - 3 columns */
+.emotion-section {
+    grid-column: span 3;
+}
+
+/* Chat Section - 4 columns */
+.chat-section {
+    grid-column: span 4;
+}
+
+/* Info Panel - 2 columns */
+.info-panel {
+    grid-column: span 2;
+}
+
+/* Connection Status */
+.connection-status {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    padding: var(--space-lg);
+    border-radius: var(--radius-lg);
+    margin-bottom: var(--space-xl);
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+}
+
+.connection-icon {
+    font-size: var(--text-2xl);
+}
+
+.connection-text {
+    flex: 1;
+}
+
+.connection-text strong {
+    display: block;
+    margin-bottom: var(--space-xs);
+    color: var(--text-primary);
+    font-size: var(--text-sm);
+}
+
+#wsStatus {
+    color: var(--success);
+    font-weight: var(--weight-semibold);
+    font-size: var(--text-sm);
+}
+
+/* Responsive Breakpoints */
+@media (max-width: 1400px) {
+    .content {
+        grid-template-columns: repeat(8, 1fr);
+    }
+    
+    .video-section {
+        grid-column: span 4;
+    }
+    
+    .emotion-section {
+        grid-column: span 4;
+    }
+    
+    .chat-section {
+        grid-column: span 5;
+    }
+    
+    .info-panel {
+        grid-column: span 3;
+    }
+}
+
+@media (max-width: 1024px) {
+    .content {
+        grid-template-columns: repeat(4, 1fr);
+    }
+    
+    .video-section {
+        grid-column: span 4;
+    }
+    
+    .emotion-section {
+        grid-column: span 4;
+    }
+    
+    .chat-section {
+        grid-column: span 4;
+    }
+    
+    .info-panel {
+        grid-column: span 4;
+    }
+    
+    .video-container {
+        aspect-ratio: 16 / 9;
+    }
+}
+
+@media (max-width: 768px) {
+    .content {
+        grid-template-columns: 1fr;
+        gap: var(--space-lg);
+    }
+    
+    .video-section,
+    .emotion-section,
+    .chat-section,
+    .info-panel {
+        grid-column: span 1;
+    }
+    
+    .summary-card {
+        padding: var(--space-lg);
+    }
+    
+    .timeline-section {
+        padding: var(--space-lg);
+    }
+    
+    .control-panel {
+        flex-direction: column;
+    }
+    
+    .btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+/* Full-width elements */
+.summary-card,
+.timeline-section {
+    grid-column: 1 / -1;
+}
+
+.status-bar {
+    grid-column: 1 / -1;
+}
+

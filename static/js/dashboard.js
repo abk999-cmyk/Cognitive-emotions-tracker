@@ -7,6 +7,10 @@
 let socket = null;
 let isTracking = false;
 let emotionData = {};
+let emotionTimeline = null;
+let settingsManager = null;
+let previousDominantEmotion = null;
+let emotionHistory = []; // For stability calculation
 
 // DOM elements
 const startBtn = document.getElementById('startBtn');
@@ -37,8 +41,16 @@ const EMOTIONS = [
 function init() {
     console.log('Initializing AI Emotion Tracking System...');
     
+    uiLogger.info('Application initializing');
+    
     // Initialize emotion table
     initEmotionTable();
+    
+    // Initialize timeline
+    emotionTimeline = new EmotionTimeline('emotionTimeline');
+    
+    // Initialize settings manager
+    settingsManager = new SettingsManager();
     
     // Setup WebSocket connection
     setupWebSocket();
@@ -46,7 +58,17 @@ function init() {
     // Setup event listeners
     setupEventListeners();
     
+    // Setup keyboard shortcuts
+    setupKeyboardShortcuts();
+    
+    // Setup table filters
+    setupTableFilters();
+    
+    // Setup modals
+    setupModals();
+    
     console.log('Initialization complete');
+    uiLogger.info('Application initialized successfully');
 }
 
 /**
@@ -54,9 +76,12 @@ function init() {
  */
 function initEmotionTable() {
     emotionTableBody.innerHTML = '';
-    emotionCount.textContent = EMOTIONS.length;
     
-    EMOTIONS.forEach(emotion => {
+    // Get all emotions from metadata
+    const allEmotions = Object.keys(EmotionMetadata.emotions);
+    emotionCount.textContent = allEmotions.length;
+    
+    allEmotions.forEach(emotion => {
         const row = createEmotionRow(emotion, 0.0);
         emotionTableBody.appendChild(row);
         emotionData[emotion] = 0.0;
@@ -67,12 +92,17 @@ function initEmotionTable() {
  * Create a table row for an emotion
  */
 function createEmotionRow(emotion, score) {
+    const meta = EmotionMetadata.getMetadata(emotion);
+    
     const row = document.createElement('tr');
     row.id = `emotion-${emotion}`;
+    row.setAttribute('data-group', meta.group);
+    row.setAttribute('data-category', meta.category);
     
     const nameCell = document.createElement('td');
     nameCell.className = 'emotion-name';
     nameCell.textContent = emotion.charAt(0).toUpperCase() + emotion.slice(1);
+    nameCell.setAttribute('data-tippy-content', meta.definition);
     
     const scoreCell = document.createElement('td');
     scoreCell.className = 'emotion-score';
@@ -137,6 +167,20 @@ function updateEmotions(emotions) {
         window.chatModule.updateChatEmotions(emotions);
     }
     
+    // Add to emotion history for stability calculation
+    emotionHistory.push(emotions);
+    if (emotionHistory.length > 20) {
+        emotionHistory.shift();
+    }
+    
+    // Update summary card
+    updateSummaryCard(emotions);
+    
+    // Update timeline
+    if (emotionTimeline) {
+        emotionTimeline.addDataPoint(emotions);
+    }
+    
     Object.keys(emotions).forEach(emotion => {
         const score = emotions[emotion];
         const previousScore = emotionData[emotion] || 0;
@@ -147,7 +191,7 @@ function updateEmotions(emotions) {
         // Update score text
         const scoreElement = document.getElementById(`score-${emotion}`);
         if (scoreElement) {
-            scoreElement.textContent = score.toFixed(2);
+            DOMUtils.updateText(scoreElement, score.toFixed(2));
             updateScoreColor(scoreElement, score);
             
             // Add flash animation if score changed significantly
@@ -409,12 +453,227 @@ window.addEventListener('beforeunload', () => {
     }
 });
 
+/**
+ * Update summary card with dominant emotion
+ */
+function updateSummaryCard(emotions) {
+    // Find dominant emotion
+    let maxEmotion = null;
+    let maxScore = 0;
+    
+    Object.entries(emotions).forEach(([emotion, score]) => {
+        if (score > maxScore) {
+            maxScore = score;
+            maxEmotion = emotion;
+        }
+    });
+    
+    if (!maxEmotion) return;
+    
+    // Update name and score in emotion indicator
+    const dominantName = document.getElementById('dominantName');
+    const dominantScore = document.getElementById('dominantScore');
+    
+    if (dominantName) DOMUtils.updateText(dominantName, maxEmotion.charAt(0).toUpperCase() + maxEmotion.slice(1));
+    if (dominantScore) DOMUtils.updateText(dominantScore, maxScore.toFixed(2));
+}
+
+/**
+ * Update emotion trend indicator
+ */
+function updateEmotionTrend(emotion, score) {
+    const trendArrow = document.querySelector('.trend-arrow');
+    const trendText = document.querySelector('.trend-text');
+    
+    if (previousDominantEmotion && previousDominantEmotion.emotion === emotion) {
+        const previousScore = previousDominantEmotion.score;
+        const diff = score - previousScore;
+        
+        if (diff > 0.05) {
+            if (trendArrow) trendArrow.textContent = '↑';
+            if (trendText) trendText.textContent = 'Rising';
+        } else if (diff < -0.05) {
+            if (trendArrow) trendArrow.textContent = '↓';
+            if (trendText) trendText.textContent = 'Declining';
+        } else {
+            if (trendArrow) trendArrow.textContent = '→';
+            if (trendText) trendText.textContent = 'Stable';
+        }
+    } else {
+        if (trendArrow) trendArrow.textContent = '↗';
+        if (trendText) trendText.textContent = 'Changed';
+    }
+    
+    previousDominantEmotion = { emotion, score };
+}
+
+/**
+ * Update stability badge based on emotion variance
+ */
+function updateStabilityBadge() {
+    if (emotionHistory.length < 5) return;
+    
+    // Calculate variance of dominant emotion
+    const recentScores = emotionHistory.slice(-10).map(emotions => {
+        let maxScore = 0;
+        Object.values(emotions).forEach(score => {
+            if (score > maxScore) maxScore = score;
+        });
+        return maxScore;
+    });
+    
+    const mean = recentScores.reduce((a, b) => a + b) / recentScores.length;
+    const variance = recentScores.reduce((sum, score) => sum + Math.pow(score - mean, 2), 0) / recentScores.length;
+    const stdDev = Math.sqrt(variance);
+    
+    const badgeText = document.querySelector('#stabilityBadge .badge-text');
+    
+    if (stdDev < 0.1) {
+        if (badgeText) badgeText.textContent = 'Very Stable';
+    } else if (stdDev < 0.2) {
+        if (badgeText) badgeText.textContent = 'Stable';
+    } else {
+        if (badgeText) badgeText.textContent = 'Fluctuating';
+    }
+}
+
+/**
+ * Setup keyboard shortcuts
+ */
+function setupKeyboardShortcuts() {
+    // Start tracking (S)
+    DOMUtils.addShortcut('s', () => {
+        if (!isTracking) startTracking();
+    });
+    
+    // Stop tracking (X)
+    DOMUtils.addShortcut('x', () => {
+        if (isTracking) stopTracking();
+    });
+    
+    // Open settings (,)
+    DOMUtils.addShortcut(',', () => {
+        if (settingsManager) settingsManager.open();
+    });
+    
+    // Open help (?)
+    DOMUtils.addShortcut('?', () => {
+        const helpModal = document.getElementById('helpModal');
+        if (helpModal) {
+            helpModal.style.display = 'flex';
+            helpModal.setAttribute('aria-hidden', 'false');
+        }
+    });
+    
+    uiLogger.info('Keyboard shortcuts initialized');
+}
+
+/**
+ * Setup table filters
+ */
+function setupTableFilters() {
+    const filterButtons = document.querySelectorAll('.filter-btn');
+    
+    filterButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            // Update active button
+            filterButtons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            
+            const filter = btn.getAttribute('data-filter');
+            filterTable(filter);
+        });
+    });
+    
+    // Initialize tooltips using Tippy.js
+    if (typeof tippy !== 'undefined') {
+        tippy('[data-tippy-content]', {
+            theme: 'dark',
+            placement: 'top',
+            arrow: true,
+            animation: 'fade'
+        });
+    }
+}
+
+/**
+ * Filter emotion table by group
+ */
+function filterTable(filter) {
+    const rows = document.querySelectorAll('#emotionTableBody tr');
+    
+    rows.forEach(row => {
+        if (filter === 'all') {
+            row.style.display = '';
+        } else {
+            const group = row.getAttribute('data-group');
+            row.style.display = group === filter ? '' : 'none';
+        }
+    });
+}
+
+/**
+ * Setup modals
+ */
+function setupModals() {
+    // Settings modal
+    const settingsBtn = document.getElementById('settingsBtn');
+    if (settingsBtn) {
+        settingsBtn.addEventListener('click', () => {
+            if (settingsManager) {
+                settingsManager.open();
+                settingsManager.setSocket(socket);
+            }
+        });
+    }
+    
+    // Help modal
+    const helpBtn = document.getElementById('helpBtn');
+    const helpModal = document.getElementById('helpModal');
+    const closeHelpBtns = document.querySelectorAll('.close-help');
+    
+    if (helpBtn && helpModal) {
+        helpBtn.addEventListener('click', () => {
+            helpModal.style.display = 'flex';
+            helpModal.setAttribute('aria-hidden', 'false');
+        });
+        
+        closeHelpBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                helpModal.style.display = 'none';
+                helpModal.setAttribute('aria-hidden', 'true');
+            });
+        });
+        
+        // Close on outside click
+        helpModal.addEventListener('click', (e) => {
+            if (e.target === helpModal) {
+                helpModal.style.display = 'none';
+                helpModal.setAttribute('aria-hidden', 'true');
+            }
+        });
+    }
+    
+    // Clear timeline button
+    const clearTimelineBtn = document.getElementById('clearTimelineBtn');
+    if (clearTimelineBtn) {
+        clearTimelineBtn.addEventListener('click', () => {
+            if (emotionTimeline) {
+                emotionTimeline.clear();
+                DOMUtils.announce('Timeline cleared');
+            }
+        });
+    }
+}
+
 // Export for debugging
 window.emotionTracker = {
     getCurrentEmotions,
     checkStatus,
     emotionData,
-    socket
+    socket,
+    emotionTimeline,
+    settingsManager
 };
 
 
